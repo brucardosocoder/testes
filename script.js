@@ -14,6 +14,11 @@ class WebDAW {
         this.filesLoaded = 0;
         this.totalFilesToLoad = 0;
 
+        // Sincronização Centralizada
+        this.referenceTrackNumber = 1; // Usaremos o Violino 1 como maestro
+        this.noteTimes = [];
+        this.nextNoteIndex = 0;
+
         this.trackConfigs = [
             { name: 'Violino 1', file: 'audio/Violino 1.mp3', score: 'scores/Violino 1.xml' },
             { name: 'Violino 2', file: 'audio/Violino 2.mp3', score: 'scores/Violino 2.xml' },
@@ -50,57 +55,48 @@ class WebDAW {
     updateLoaderProgress() {
         this.filesLoaded++;
         const percentage = (this.filesLoaded / this.totalFilesToLoad) * 100;
-        const loaderBar = document.getElementById('loader-bar');
-        if (loaderBar) loaderBar.style.width = `${percentage}%`;
-
+        document.getElementById('loader-bar').style.width = `${percentage}%`;
         if (this.filesLoaded >= this.totalFilesToLoad) {
-            setTimeout(() => {
-                document.getElementById('preloader')?.classList.add('hidden');
-            }, 500);
+            setTimeout(() => document.getElementById('preloader')?.classList.add('hidden'), 500);
         }
     }
 
     async loadAndRenderScore(trackNumber) {
         const track = this.tracks.get(trackNumber);
         const scoreContainer = document.getElementById(`score-container-${trackNumber}`);
-        
-        const loadingMessage = scoreContainer.querySelector('.loading-score');
-        if (loadingMessage) loadingMessage.remove();
+        scoreContainer.innerHTML = ''; // Limpa a mensagem "Carregando..."
 
         const osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(scoreContainer, {
-            autoResize: false,
-            backend: "svg",
-            drawingParameters: "horizontal",
+            autoResize: false, backend: "svg", drawingParameters: "horizontal",
             drawTitle: false, drawSubtitle: false, drawComposer: false, drawLyricist: false,
             drawMetronome: false, drawPartNames: false, drawMeasureNumbers: false,
-            defaultColorMusic: "#FFFFFF",
-            followCursor: true,
+            defaultColorMusic: "#FFFFFF", followCursor: true,
         });
         
         try {
             const response = await fetch(track.score);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const scoreText = await response.text();
             await osmd.load(scoreText);
             osmd.render();
-            osmd.cursor.show();
             
-            const noteTimes = [];
-            const iterator = osmd.cursor.Iterator;
-            while (!iterator.EndReached) {
-                const timestamp = iterator.CurrentVoiceEntries[0]?.Timestamp;
-                if (timestamp) noteTimes.push(timestamp.RealValue);
-                iterator.next();
+            // Apenas a faixa de referência cria o mapa de tempo
+            if (trackNumber === this.referenceTrackNumber) {
+                osmd.cursor.show();
+                const iterator = osmd.cursor.Iterator;
+                while (!iterator.EndReached) {
+                    const timestamp = iterator.CurrentVoiceEntries[0]?.Timestamp;
+                    if (timestamp) this.noteTimes.push(timestamp.RealValue);
+                    iterator.next();
+                }
+            } else {
+                osmd.cursor.hide(); // Esconde os cursores das outras faixas
             }
-            track.noteTimes = noteTimes;
-            track.nextNoteIndex = 0;
-            osmd.cursor.reset(); // Reset cursor to beginning after mapping
             
             this.osmdInstances.set(trackNumber, osmd);
-
         } catch (error) {
             scoreContainer.innerHTML = `<div class="loading-score" style="color: #ff8a80;">Erro!</div>`;
-            console.error(`Error loading score for track ${trackNumber}:`, error);
+            console.error(`Error for track ${trackNumber}:`, error);
         } finally {
             this.updateLoaderProgress();
         }
@@ -118,15 +114,10 @@ class WebDAW {
         const tracksContainer = document.querySelector('.track-list');
         this.trackConfigs.forEach((config, index) => {
             const trackNumber = index + 1;
-            const trackData = { 
-                ...config, audioBuffer: null, source: null, gainNode: null, panNode: null, 
-                isMuted: false, isSolo: false, volume: 0.7 
-            };
-
+            const trackData = { ...config, audioBuffer: null, source: null, isMuted: false, isSolo: false, volume: 0.7 };
             trackData.gainNode = this.audioContext.createGain();
             trackData.panNode = this.audioContext.createStereoPanner();
             trackData.gainNode.connect(trackData.panNode).connect(this.masterGainNode);
-
             this.tracks.set(trackNumber, trackData);
             
             const trackItem = document.createElement('div');
@@ -143,11 +134,9 @@ class WebDAW {
                     <div class="slider-group"><label>Vol</label><input type="range" class="volume-slider" min="0" max="100" value="70"><span class="volume-value">70%</span></div>
                     <div class="slider-group"><label>Pan</label><input type="range" class="pan-slider" min="-100" max="100" value="0"><span class="pan-value">C</span></div>
                 </div>
-                <div class="score-container" id="score-container-${trackNumber}">
-                    <div class="loading-score">Carregando...</div>
-                </div>`;
+                <div class="score-container" id="score-container-${trackNumber}"><div class="loading-score">Carregando...</div></div>`;
             tracksContainer.appendChild(trackItem);
-            this.tracks.get(trackNumber).element = trackItem;
+            trackData.element = trackItem;
         });
     }
 
@@ -182,18 +171,17 @@ class WebDAW {
         });
         
         this.tracks.forEach((track, trackNumber) => {
-            const element = track.element;
-            element.querySelector('.mute-btn').addEventListener('click', () => this.toggleMute(trackNumber));
-            element.querySelector('.solo-btn').addEventListener('click', () => this.toggleSolo(trackNumber));
-            element.querySelector('.volume-slider').addEventListener('input', (e) => {
+            const el = track.element;
+            el.querySelector('.mute-btn').addEventListener('click', () => this.toggleMute(trackNumber));
+            el.querySelector('.solo-btn').addEventListener('click', () => this.toggleSolo(trackNumber));
+            el.querySelector('.volume-slider').addEventListener('input', (e) => {
                 this.setTrackVolume(trackNumber, e.target.value / 100);
-                element.querySelector('.volume-value').textContent = `${e.target.value}%`;
+                el.querySelector('.volume-value').textContent = `${e.target.value}%`;
             });
-            element.querySelector('.pan-slider').addEventListener('input', (e) => {
-                const panValue = e.target.value / 100;
-                this.setTrackPan(trackNumber, panValue);
+            el.querySelector('.pan-slider').addEventListener('input', (e) => {
+                this.setTrackPan(trackNumber, e.target.value / 100);
                 const value = parseInt(e.target.value, 10);
-                element.querySelector('.pan-value').textContent = value === 0 ? 'C' : (value > 0 ? `R${value}` : `L${Math.abs(value)}`);
+                el.querySelector('.pan-value').textContent = value === 0 ? 'C' : (value > 0 ? `R${value}` : `L${Math.abs(value)}`);
             });
         });
     }
@@ -204,11 +192,7 @@ class WebDAW {
         if (this.audioContext.state === 'suspended') this.audioContext.resume();
         this.isPlaying = true;
         this.startTime = this.audioContext.currentTime - this.pauseTime;
-        
-        this.tracks.forEach(track => {
-            if (track.audioBuffer) this.startTrack(track);
-        });
-
+        this.tracks.forEach(track => { if (track.audioBuffer) this.startTrack(track); });
         document.getElementById('playBtn').textContent = '⏸';
         requestAnimationFrame(() => this.updateProgress());
     }
@@ -217,12 +201,7 @@ class WebDAW {
         if (!this.isPlaying) return;
         this.isPlaying = false;
         this.pauseTime = this.audioContext.currentTime - this.startTime;
-        this.tracks.forEach(track => {
-            if (track.source) {
-                track.source.stop();
-                track.source = null;
-            }
-        });
+        this.tracks.forEach(track => { if (track.source) track.source.stop(); });
         document.getElementById('playBtn').textContent = '▶';
     }
 
@@ -240,19 +219,15 @@ class WebDAW {
         this.pauseTime = Math.max(0, Math.min(time, this.duration));
         this.currentTime = this.pauseTime;
         
-        this.osmdInstances.forEach((osmd, trackNumber) => {
-            const track = this.tracks.get(trackNumber);
-            if (!track || !track.noteTimes) return;
-
-            let nextNoteIndex = track.noteTimes.findIndex(noteTime => noteTime >= this.currentTime);
-            if (nextNoteIndex === -1) nextNoteIndex = track.noteTimes.length;
-            
-            track.nextNoteIndex = nextNoteIndex;
-            osmd.cursor.reset();
-            for (let i = 0; i < nextNoteIndex; i++) {
-                osmd.cursor.next();
-            }
-        });
+        let nextNoteIndex = this.noteTimes.findIndex(noteTime => noteTime >= this.currentTime);
+        if (nextNoteIndex === -1) nextNoteIndex = this.noteTimes.length;
+        this.nextNoteIndex = nextNoteIndex;
+        
+        const referenceOSMD = this.osmdInstances.get(this.referenceTrackNumber);
+        if (referenceOSMD) {
+            referenceOSMD.cursor.reset();
+            for (let i = 0; i < this.nextNoteIndex; i++) referenceOSMD.cursor.next();
+        }
 
         this.updateUI(true);
         if (wasPlaying) this.play();
@@ -268,15 +243,13 @@ class WebDAW {
             return;
         }
         
-        this.osmdInstances.forEach((osmd, trackNumber) => {
-            const track = this.tracks.get(trackNumber);
-            if (!track || !track.noteTimes) return;
-
-            while (track.nextNoteIndex < track.noteTimes.length && this.currentTime >= track.noteTimes[track.nextNoteIndex]) {
-                osmd.cursor.next();
-                track.nextNoteIndex++;
+        const referenceOSMD = this.osmdInstances.get(this.referenceTrackNumber);
+        if (referenceOSMD && this.noteTimes.length > 0) {
+            while (this.nextNoteIndex < this.noteTimes.length && this.currentTime >= this.noteTimes[this.nextNoteIndex]) {
+                referenceOSMD.cursor.next();
+                this.nextNoteIndex++;
             }
-        });
+        }
 
         this.updateUI();
         requestAnimationFrame(() => this.updateProgress());
@@ -286,22 +259,24 @@ class WebDAW {
         document.getElementById("progressFill").style.width = `${(this.currentTime / this.duration) * 100}%`;
         document.getElementById("currentTime").textContent = this.formatTime(this.currentTime);
 
-        this.osmdInstances.forEach((osmd, trackNumber) => {
-            if (osmd && osmd.cursor && osmd.cursor.cursorElement) {
-                const scoreContainer = document.getElementById(`score-container-${trackNumber}`);
-                const cursorElement = osmd.cursor.cursorElement;
-                
-                if (scoreContainer && cursorElement) {
-                    const containerWidth = scoreContainer.clientWidth;
-                    const cursorLeft = cursorElement.offsetLeft;
-                    const scrollTarget = containerWidth * 0.4;
-                    const newScrollLeft = cursorLeft - scrollTarget;
+        const referenceOSMD = this.osmdInstances.get(this.referenceTrackNumber);
+        if (!referenceOSMD || !referenceOSMD.cursor.cursorElement) return;
 
-                    if (forceScroll) {
-                        scoreContainer.scrollLeft = newScrollLeft;
-                    } else if (newScrollLeft > scoreContainer.scrollLeft) {
-                        scoreContainer.scrollLeft = newScrollLeft;
-                    }
+        const scoreContainer = document.getElementById(`score-container-${this.referenceTrackNumber}`);
+        const cursorElement = referenceOSMD.cursor.cursorElement;
+        const containerWidth = scoreContainer.clientWidth;
+        const cursorLeft = cursorElement.offsetLeft;
+        const scrollTarget = containerWidth * 0.4;
+        const newScrollLeft = cursorLeft - scrollTarget;
+
+        // Aplica a rolagem a TODAS as partituras
+        this.osmdInstances.forEach((osmd, i) => {
+            const container = document.getElementById(`score-container-${i}`);
+            if (container) {
+                if (forceScroll) {
+                    container.scrollLeft = newScrollLeft;
+                } else if (newScrollLeft > container.scrollLeft) {
+                    container.scrollLeft = newScrollLeft;
                 }
             }
         });
