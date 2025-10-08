@@ -1,6 +1,5 @@
 class WebDAW {
     constructor() {
-        // Audio properties
         this.audioContext = null;
         this.tracks = new Map();
         this.masterGainNode = null;
@@ -11,11 +10,7 @@ class WebDAW {
         this.duration = 0;
         this.soloedTracks = new Set();
         this.isLooping = false;
-
-        // OSMD properties
         this.osmdInstances = new Map();
-
-        // Pre-loader properties
         this.filesLoaded = 0;
         this.totalFilesToLoad = 0;
 
@@ -83,14 +78,10 @@ class WebDAW {
         });
         
         try {
-            // **CORREÇÃO DEFINITIVA: Forçar o carregamento como texto**
             const response = await fetch(track.score);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const scoreText = await response.text(); // Lê o arquivo como texto, ignorando o cabeçalho do servidor
-            await osmd.load(scoreText); // Carrega o texto no OSMD
-
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const scoreText = await response.text();
+            await osmd.load(scoreText);
             osmd.render();
             osmd.cursor.show();
             
@@ -98,13 +89,12 @@ class WebDAW {
             const iterator = osmd.cursor.Iterator;
             while (!iterator.EndReached) {
                 const timestamp = iterator.CurrentVoiceEntries[0]?.Timestamp;
-                if (timestamp) {
-                    noteTimes.push(timestamp.RealValue);
-                }
+                if (timestamp) noteTimes.push(timestamp.RealValue);
                 iterator.next();
             }
             track.noteTimes = noteTimes;
             track.nextNoteIndex = 0;
+            osmd.cursor.reset(); // Reset cursor to beginning after mapping
             
             this.osmdInstances.set(trackNumber, osmd);
 
@@ -129,8 +119,7 @@ class WebDAW {
         this.trackConfigs.forEach((config, index) => {
             const trackNumber = index + 1;
             const trackData = { 
-                ...config, 
-                audioBuffer: null, source: null, gainNode: null, panNode: null, 
+                ...config, audioBuffer: null, source: null, gainNode: null, panNode: null, 
                 isMuted: false, isSolo: false, volume: 0.7 
             };
 
@@ -274,7 +263,7 @@ class WebDAW {
         this.currentTime = this.pauseTime + (this.audioContext.currentTime - this.startTime);
         
         if (this.currentTime >= this.duration) {
-            if (this.isLooping) { this.seekTo(0); this.play(); }
+            if (this.isLooping) { this.seekTo(0); }
             else { this.pause(); this.seekTo(0); }
             return;
         }
