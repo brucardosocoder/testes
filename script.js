@@ -1,5 +1,6 @@
 class WebDAW {
     constructor() {
+        // Audio properties
         this.audioContext = null;
         this.tracks = new Map();
         this.masterGainNode = null;
@@ -10,7 +11,11 @@ class WebDAW {
         this.duration = 0;
         this.soloedTracks = new Set();
         this.isLooping = false;
+
+        // OSMD properties
         this.osmdInstances = new Map();
+
+        // Pre-loader properties
         this.filesLoaded = 0;
         this.totalFilesToLoad = 0;
 
@@ -73,15 +78,30 @@ class WebDAW {
             drawingParameters: "horizontal",
             drawTitle: false, drawSubtitle: false, drawComposer: false, drawLyricist: false,
             drawMetronome: false, drawPartNames: false, drawMeasureNumbers: false,
-            defaultColorMusic: "#FFFFFF", // **CORREÇÃO 1: Define a cor da partitura para branco**
-            followCursor: true, // Ativa o acompanhamento do cursor
+            defaultColorMusic: "#FFFFFF",
+            followCursor: true,
         });
-        this.osmdInstances.set(trackNumber, osmd);
-
+        
         try {
             await osmd.load(track.score);
             osmd.render();
             osmd.cursor.show();
+            
+            // **NOVA LÓGICA DE MAPEAMENTO**
+            const noteTimes = [];
+            const iterator = osmd.cursor.Iterator;
+            while (!iterator.EndReached) {
+                const timestamp = iterator.CurrentVoiceEntries[0]?.Timestamp;
+                if (timestamp) {
+                    noteTimes.push(timestamp.RealValue);
+                }
+                iterator.next();
+            }
+            track.noteTimes = noteTimes;
+            track.nextNoteIndex = 0;
+            
+            this.osmdInstances.set(trackNumber, osmd);
+
         } catch (error) {
             scoreContainer.innerHTML = `<div class="loading-score" style="color: #ff8a80;">Erro!</div>`;
             console.error(`Error loading score for track ${trackNumber}:`, error);
@@ -217,6 +237,23 @@ class WebDAW {
         if (wasPlaying) this.pause();
         this.pauseTime = Math.max(0, Math.min(time, this.duration));
         this.currentTime = this.pauseTime;
+        
+        // **NOVA LÓGICA DE SEEK**
+        this.osmdInstances.forEach((osmd, trackNumber) => {
+            const track = this.tracks.get(trackNumber);
+            if (!track || !track.noteTimes) return;
+
+            // Encontra o índice da nota mais próxima do tempo atual
+            let nextNoteIndex = track.noteTimes.findIndex(noteTime => noteTime >= this.currentTime);
+            if (nextNoteIndex === -1) nextNoteIndex = track.noteTimes.length;
+            
+            track.nextNoteIndex = nextNoteIndex;
+            osmd.cursor.reset();
+            for (let i = 0; i < nextNoteIndex; i++) {
+                osmd.cursor.next();
+            }
+        });
+
         this.updateUI(true);
         if (wasPlaying) this.play();
     }
@@ -231,6 +268,17 @@ class WebDAW {
             return;
         }
         
+        // **NOVA LÓGICA DE SINCRONIZAÇÃO**
+        this.osmdInstances.forEach((osmd, trackNumber) => {
+            const track = this.tracks.get(trackNumber);
+            if (!track || !track.noteTimes) return;
+
+            while (track.nextNoteIndex < track.noteTimes.length && this.currentTime >= track.noteTimes[track.nextNoteIndex]) {
+                osmd.cursor.next();
+                track.nextNoteIndex++;
+            }
+        });
+
         this.updateUI();
         requestAnimationFrame(() => this.updateProgress());
     }
@@ -240,32 +288,19 @@ class WebDAW {
         document.getElementById("currentTime").textContent = this.formatTime(this.currentTime);
 
         this.osmdInstances.forEach((osmd, trackNumber) => {
-            if (osmd && osmd.cursor) {
-                osmd.cursor.time = this.currentTime;
-                
-                // **CORREÇÃO 2: LÓGICA DE ROLAGEM AUTOMÁTICA REFEITA**
+            if (osmd && osmd.cursor && osmd.cursor.cursorElement) {
                 const scoreContainer = document.getElementById(`score-container-${trackNumber}`);
                 const cursorElement = osmd.cursor.cursorElement;
                 
                 if (scoreContainer && cursorElement) {
                     const containerWidth = scoreContainer.clientWidth;
                     const cursorLeft = cursorElement.offsetLeft;
-                    const currentScroll = scoreContainer.scrollLeft;
-                    
-                    // Ponto alvo para o cursor (ex: 40% da largura do container)
                     const scrollTarget = containerWidth * 0.4;
-
-                    // Calcula a nova posição de rolagem
                     const newScrollLeft = cursorLeft - scrollTarget;
 
-                    // Apenas rola se a nova posição for maior que a atual (evita rolar para trás)
-                    // e se o cursor tiver passado do ponto alvo
-                    if (newScrollLeft > currentScroll && cursorLeft > scrollTarget) {
-                        scoreContainer.scrollLeft = newScrollLeft;
-                    }
-
-                    // Se for um seek, força a rolagem para a posição exata
                     if (forceScroll) {
+                        scoreContainer.scrollLeft = newScrollLeft;
+                    } else if (newScrollLeft > scoreContainer.scrollLeft) {
                         scoreContainer.scrollLeft = newScrollLeft;
                     }
                 }
