@@ -83,11 +83,17 @@ class WebDAW {
         });
         
         try {
-            await osmd.load(track.score);
+            // **CORREÇÃO DEFINITIVA: Forçar o carregamento como texto**
+            const response = await fetch(track.score);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const scoreText = await response.text(); // Lê o arquivo como texto, ignorando o cabeçalho do servidor
+            await osmd.load(scoreText); // Carrega o texto no OSMD
+
             osmd.render();
             osmd.cursor.show();
             
-            // **NOVA LÓGICA DE MAPEAMENTO**
             const noteTimes = [];
             const iterator = osmd.cursor.Iterator;
             while (!iterator.EndReached) {
@@ -122,7 +128,17 @@ class WebDAW {
         const tracksContainer = document.querySelector('.track-list');
         this.trackConfigs.forEach((config, index) => {
             const trackNumber = index + 1;
-            this.tracks.set(trackNumber, { ...config, audioBuffer: null, source: null, gainNode: null, panNode: null, isMuted: false, isSolo: false, volume: 0.7 });
+            const trackData = { 
+                ...config, 
+                audioBuffer: null, source: null, gainNode: null, panNode: null, 
+                isMuted: false, isSolo: false, volume: 0.7 
+            };
+
+            trackData.gainNode = this.audioContext.createGain();
+            trackData.panNode = this.audioContext.createStereoPanner();
+            trackData.gainNode.connect(trackData.panNode).connect(this.masterGainNode);
+
+            this.tracks.set(trackNumber, trackData);
             
             const trackItem = document.createElement('div');
             trackItem.className = 'track-item';
@@ -152,9 +168,6 @@ class WebDAW {
             const response = await fetch(track.file);
             const arrayBuffer = await response.arrayBuffer();
             track.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-            track.gainNode = this.audioContext.createGain();
-            track.panNode = this.audioContext.createStereoPanner();
-            track.gainNode.connect(track.panNode).connect(this.masterGainNode);
         } catch (error) {
             console.error(`Error loading audio for track ${trackNumber}:`, error);
         } finally {
@@ -238,12 +251,10 @@ class WebDAW {
         this.pauseTime = Math.max(0, Math.min(time, this.duration));
         this.currentTime = this.pauseTime;
         
-        // **NOVA LÓGICA DE SEEK**
         this.osmdInstances.forEach((osmd, trackNumber) => {
             const track = this.tracks.get(trackNumber);
             if (!track || !track.noteTimes) return;
 
-            // Encontra o índice da nota mais próxima do tempo atual
             let nextNoteIndex = track.noteTimes.findIndex(noteTime => noteTime >= this.currentTime);
             if (nextNoteIndex === -1) nextNoteIndex = track.noteTimes.length;
             
@@ -268,7 +279,6 @@ class WebDAW {
             return;
         }
         
-        // **NOVA LÓGICA DE SINCRONIZAÇÃO**
         this.osmdInstances.forEach((osmd, trackNumber) => {
             const track = this.tracks.get(trackNumber);
             if (!track || !track.noteTimes) return;
