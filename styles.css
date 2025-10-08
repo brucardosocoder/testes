@@ -87,20 +87,19 @@ header {
     background: #111;
     border-radius: 4px;
     position: relative;
-    overflow-x: auto; /* Permite rolagem horizontal */
+    overflow-x: auto;
     overflow-y: hidden;
     height: 80px;
     width: 100%;
     border: 1px solid #333;
     display: flex;
     align-items: center;
-    scroll-behavior: smooth; /* Rolagem suave! */
-    /* Esconde a barra de rolagem visualmente, mas a mantém funcional */
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    scroll-behavior: smooth;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 .score-container::-webkit-scrollbar {
-    display: none; /* Chrome, Safari and Opera */
+    display: none;
 }
 
 .loading-score { color: #888; font-size: 12px; margin: 0 auto; }
