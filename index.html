@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lua Brilhante - Player Interativo</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="luabrilhante-16x16.ico" type="image/x-icon">
+</head>
+<body>
+    <div id="preloader">
+        <div class="loader-text">Carregando Partituras e Áudios...</div>
+        <div class="loader-bar-container">
+            <div id="loader-bar" class="loader-bar"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="song-info">
+                <h1>Seção A</h1>
+            </div>
+            <div class="header-center">
+                <div class="song-title">
+                    <h1>Lua Brilhante</h1>
+                    <span class="song-meta">Bru Cardoso</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <a href="https://www.instagram.com/brucardoso.music" class="instagram-link" target="_blank" title="Instagram">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919C8.416 2.175 8.796 2.163 12 2.163zm0-2.163c-3.259 0-3.667.014-4.947.072C2.699.272.273 2.699.073 7.052.014 8.333 0 8.741 0 12s.014 3.667.072 4.948c.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072s3.668-.014 4.948-.072c4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948s-.014-3.667-.072-4.947c-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4s1.791-4 4-4 4 1.791 4 4-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                </a>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="audio-player">
+                <div class="track-list"></div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="transport-controls">
+                <div class="transport-left">
+                    <div class="reset-section">
+                        <button class="reset-btn" id="resetBtn">Reset</button>
+                    </div>
+                </div>
+                <div class="transport-center">
+                    <div class="playback-controls">
+                        <button class="transport-btn volume-btn" id="volumeBtn" title="Mudo">🔊</button>
+                        <button class="transport-btn prev-btn" id="prevBtn" title="Retroceder 10s">⏮</button>
+                        <button class="transport-btn play-btn" id="playBtn" title="Play/Pause">▶</button>
+                        <button class="transport-btn next-btn" id="nextBtn" title="Avançar 10s">⏭</button>
+                        <button class="transport-btn loop-btn" id="loopBtn" title="Loop">🔁</button>
+                    </div>
+                    <div class="time-display">
+                        <span id="currentTime">0:00</span>
+                        <div class="progress-bar" id="progressBar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <span id="totalTime">0:00</span>
+                    </div>
+                </div>
+                <div class="transport-right">
+                    <div class="speed-controls">
+                        <button class="speed-btn" data-speed="0.5">0.5x</button>
+                        <button class="speed-btn active" data-speed="1">1x</button>
+                        <button class="speed-btn" data-speed="2">2x</button>
+                    </div>
+                </div>
+            </div>
+            <div class="brucardoso">
+                <p>&copy; 2025 Villa-Metal. Todos os direitos reservados. Desenvolvido por <a href="https://wa.me/5521989978029" target="_blank" class="underline">Bru Cardoso Coder.</a></p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- OSMD Library -->
+    <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.3/build/opensheetmusicdisplay.min.js"></script>
+    <!-- Your Custom Script -->
+    <script src="script.js"></script>
+</body>
+</html>
